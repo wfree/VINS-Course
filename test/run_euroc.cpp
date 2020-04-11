@@ -23,6 +23,90 @@ string sConfig_path = "../config/";
 
 std::shared_ptr<System> pSystem;
 
+#ifdef USING_SIMULATION_DATA
+void PubImuData()
+{
+	string sImu_data_file = sConfig_path + "simulation_data/imu_pose.txt";
+	cout << "1 PubImuData start sImu_data_filea: " << sImu_data_file << endl;
+	ifstream fsImu;
+	fsImu.open(sImu_data_file.c_str());
+	if (!fsImu.is_open())
+	{
+		cerr << "Failed to open imu file! " << sImu_data_file << endl;
+		return;
+	}
+
+	std::string sImu_line;
+	double dStampNSec = 0.0;
+	Quaterniond q;
+	Vector3d t;
+	Vector3d vAcc;
+	Vector3d vGyr;
+	while (std::getline(fsImu, sImu_line) && !sImu_line.empty()) // read imu data
+	{
+		std::istringstream ssImuData(sImu_line);
+		ssImuData >> dStampNSec >> q.w() >> q.x() >> q.y() >> q.z() >> t(0) >> t(1) >> t(2);
+		ssImuData >> vGyr.x() >> vGyr.y() >> vGyr.z() >> vAcc.x() >> vAcc.y() >> vAcc.z();
+		// cout << "Imu t: " << fixed << dStampNSec << " gyr: " << vGyr.transpose() << " acc: " << vAcc.transpose() << endl;
+		pSystem->PubImuData(dStampNSec, vGyr, vAcc);
+		usleep(5000*nDelayTimes);
+	}
+	fsImu.close();
+}
+
+void PubImageData()
+{
+	string sImage_file = sConfig_path + "simulation_data/cam_pose.txt";
+	cout << "1 PubImageData start sImage_file: " << sImage_file << endl;
+
+	ifstream fsImage;
+	fsImage.open(sImage_file.c_str());
+	if (!fsImage.is_open())
+	{
+		cerr << "Failed to open image file! " << sImage_file << endl;
+		return;
+	}
+
+	std::string sImage_line;
+	double dStampNSec;
+	string sImgFileName;
+	int frame_ID = 0;
+	while (std::getline(fsImage, sImage_line) && !sImage_line.empty())
+	{
+		std::istringstream ssImageData(sImage_line);
+		ssImageData >> dStampNSec;
+		string sFeature_file = sConfig_path + "simulation_data/keyframe/all_points_" + to_string(frame_ID)+ ".txt";
+
+        std::cout<<"dStampNSec: "<<dStampNSec<<std::endl;
+		std::cout<<"sFeature_file: "<<sFeature_file<<std::endl;
+
+		ifstream fsFeature;
+		fsFeature.open(sFeature_file.c_str());
+		if(!fsFeature.is_open())
+		{
+			cerr << "Failed to open feature file! " << sFeature_file << endl;
+		    return;
+		} 
+        std::string sFeature_line;
+		std::vector<std::vector<double>> vecFeatures;
+		while (std::getline(fsFeature, sFeature_line) && !sFeature_line.empty())
+	    {
+			std::istringstream ssFeatureData(sFeature_line);
+			std::vector<double> vecFeature(6);//p(0),p(1),p(2),p(3),f(0),f(1)
+		    ssFeatureData >> vecFeature[0] >> vecFeature[1] >> vecFeature[2] >> vecFeature[3]; //point
+            ssFeatureData >> vecFeature[4] >> vecFeature[5]; //feature
+			vecFeatures.emplace_back(vecFeature);		
+		}
+		fsFeature.close();
+
+		pSystem->PubImageSimulationData(dStampNSec, vecFeatures);
+		usleep(50000*nDelayTimes);
+
+		frame_ID++;
+	}
+	fsImage.close();
+}
+#else
 void PubImuData()
 {
 	string sImu_data_file = sConfig_path + "MH_05_imu0.txt";
@@ -89,6 +173,7 @@ void PubImageData()
 	}
 	fsImage.close();
 }
+#endif
 
 #ifdef __APPLE__
 // support for MacOS

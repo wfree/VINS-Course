@@ -8,8 +8,12 @@ using namespace pangolin;
 
 System::System(string sConfig_file_)
     :bStart_backend(true)
-{
+{   
+#ifdef USING_SIMULATION_DATA
+    string sConfig_file = sConfig_file_ + "simulation_config.yaml";
+#else
     string sConfig_file = sConfig_file_ + "euroc_config.yaml";
+#endif
 
     cout << "1 System() sConfig_file: " << sConfig_file << endl;
     readParameters(sConfig_file);
@@ -169,6 +173,76 @@ void System::PubImageData(double dStampSec, Mat &img)
     // cout << "5 PubImage" << endl;
     
 }
+
+#ifdef USING_SIMULATION_DATA
+void System::PubImageSimulationData(double dStampSec, std::vector<std::vector<double>> &features)
+{
+    if (first_image_flag)
+    {
+        cout << "2 PubImageData first_image_flag" << endl;
+        first_image_flag = false;
+        first_image_time = dStampSec;
+        last_image_time = dStampSec;
+        last_features.assign(features.begin(),features.end());
+        return;
+    }
+    // detect unstable camera stream
+    if (dStampSec - last_image_time > 1.0 || dStampSec < last_image_time)
+    {
+        cerr << "3 PubImageData image discontinue! reset the feature tracker!" << endl;
+        first_image_flag = true;
+        last_image_time = 0;
+        pub_count = 1;
+        return;
+    }
+    double deltaT = dStampSec - last_image_time;
+    
+    PUB_THIS_FRAME = true;
+    std::cout<<"PubImageSimulationData: "<<PUB_THIS_FRAME<<" deltaT:"<<deltaT<<" features:"<<features.size()<<std::endl;
+    //trackerData[0].readImage(img, dStampSec);
+    if (PUB_THIS_FRAME)
+    {
+        pub_count++;
+        shared_ptr<IMG_MSG> feature_points(new IMG_MSG());
+        feature_points->header = dStampSec;
+        vector<set<int>> hash_ids(NUM_OF_CAM);
+        for (int i = 0; i < NUM_OF_CAM; i++)
+        {
+            for (unsigned int j = 0; j < features.size(); j++)
+            {      
+                int p_id = j;
+                hash_ids[i].insert(p_id);
+                double x = features[j][4];
+                double y = features[j][5];
+                double z = 1;
+                feature_points->points.push_back(Vector3d(x, y, z));
+                feature_points->id_of_point.push_back(p_id * NUM_OF_CAM + i);
+                Vector2d current_uv;
+                trackerData[0].m_camera->spaceToPlane(Vector3d(x, y, z),current_uv);
+                feature_points->u_of_point.push_back(current_uv(0));
+                feature_points->v_of_point.push_back(current_uv(1));
+                Vector2d velocity;
+                velocity(0) = (x - last_features[j][4]) / deltaT;
+                velocity(1) = (y - last_features[j][5]) / deltaT;
+                feature_points->velocity_x_of_point.push_back(velocity(0));
+                feature_points->velocity_y_of_point.push_back(velocity(1));   
+
+                //std::cout<<"cur_pts: "<<current_uv(0)<<" "<<current_uv(1)<<std::endl;
+                //std::cout<<"un_pts: "<<Vector3d(x, y, z).transpose()<<std::endl;         
+            }
+            
+            m_buf.lock();
+            feature_buf.push(feature_points);
+            // cout << "5 PubImage t : " << fixed << feature_points->header
+            //     << " feature_buf size: " << feature_buf.size() << endl;
+            m_buf.unlock();
+            con.notify_one();
+        }
+    }
+    last_features.assign(features.begin(),features.end());
+    last_image_time = dStampSec;
+}
+#endif
 
 vector<pair<vector<ImuConstPtr>, ImgConstPtr>> System::getMeasurements()
 {
@@ -343,9 +417,14 @@ void System::ProcessBackEnd()
                 p_wi = estimator.Ps[WINDOW_SIZE];
                 vPath_to_draw.push_back(p_wi);
                 double dStamp = estimator.Headers[WINDOW_SIZE];
-                cout << "1 BackEnd processImage dt: " << fixed << t_processImage.toc() << " stamp: " <<  dStamp << " p_wi: " << p_wi.transpose() << endl;
+                cout << "1 BackEnd processImage dt: " << fixed << t_processImage.toc() << " stamp: " <<  dStamp << " p_wi: " << p_wi.transpose() << endl; 
+#ifdef USING_SIMULATION_DATA
+                ofs_pose << fixed << dStamp << " " << p_wi(0) << " " << p_wi(1) << " " << p_wi(2) << " " 
+                         << q_wi.x() << " " << q_wi.y() << " " << q_wi.z() << " " << q_wi.w() << endl;
+#else
                 ofs_pose << fixed << dStamp << " " << p_wi(0) << " " << p_wi(1) << " " << p_wi(2) << " " 
                          << q_wi.w() << " " << q_wi.x() << " " << q_wi.y() << " " << q_wi.z() << endl;
+#endif
             }
         }
         m_estimator.unlock();

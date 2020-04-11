@@ -17,6 +17,7 @@
 #include "parameters.h"
 #include "feature_tracker.h"
 
+#define USING_SIMULATION_DATA
 
 //imu for vio
 struct IMU_MSG
@@ -50,6 +51,11 @@ public:
 
     void PubImuData(double dStampSec, const Eigen::Vector3d &vGyr, 
         const Eigen::Vector3d &vAcc);
+
+#ifdef USING_SIMULATION_DATA
+    void PubImageSimulationData(double dStampSec, std::vector<std::vector<double>> &features);
+    std::vector<std::vector<double>> last_features;
+#endif
 
     // thread: visual-inertial odometry
     void ProcessBackEnd();
