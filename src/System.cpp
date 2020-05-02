@@ -175,7 +175,7 @@ void System::PubImageData(double dStampSec, Mat &img)
 }
 
 #ifdef USING_SIMULATION_DATA
-void System::PubImageSimulationData(double dStampSec, std::vector<std::vector<double>> &features)
+void System::PubImageSimulationData(double dStampSec, std::vector<Eigen::Vector2d> &features)
 {
     if (first_image_flag)
     {
@@ -212,20 +212,21 @@ void System::PubImageSimulationData(double dStampSec, std::vector<std::vector<do
             {      
                 int p_id = j;
                 hash_ids[i].insert(p_id);
-                double x = features[j][4];
-                double y = features[j][5];
+                double x = features[j][0];
+                double y = features[j][1];
                 double z = 1;
                 feature_points->points.push_back(Vector3d(x, y, z));
                 feature_points->id_of_point.push_back(p_id * NUM_OF_CAM + i);
+                
                 Vector2d current_uv;
                 trackerData[0].m_camera->spaceToPlane(Vector3d(x, y, z),current_uv);
                 feature_points->u_of_point.push_back(current_uv(0));
                 feature_points->v_of_point.push_back(current_uv(1));
-                Vector2d velocity;
-                velocity(0) = (x - last_features[j][4]) / deltaT;
-                velocity(1) = (y - last_features[j][5]) / deltaT;
-                feature_points->velocity_x_of_point.push_back(velocity(0));
-                feature_points->velocity_y_of_point.push_back(velocity(1));   
+
+                double velocity_x = (x - last_features[j][0]) / deltaT;
+                double velocity_y = (y - last_features[j][1]) / deltaT;
+                feature_points->velocity_x_of_point.push_back(velocity_x);
+                feature_points->velocity_y_of_point.push_back(velocity_y);   
 
                 //std::cout<<"cur_pts: "<<current_uv(0)<<" "<<current_uv(1)<<std::endl;
                 //std::cout<<"un_pts: "<<Vector3d(x, y, z).transpose()<<std::endl;         

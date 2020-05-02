@@ -88,14 +88,14 @@ void PubImageData()
 		    return;
 		} 
         std::string sFeature_line;
-		std::vector<std::vector<double>> vecFeatures;
+		std::vector<Eigen::Vector2d> vecFeatures;
 		while (std::getline(fsFeature, sFeature_line) && !sFeature_line.empty())
 	    {
 			std::istringstream ssFeatureData(sFeature_line);
 			std::vector<double> vecFeature(6);//p(0),p(1),p(2),p(3),f(0),f(1)
 		    ssFeatureData >> vecFeature[0] >> vecFeature[1] >> vecFeature[2] >> vecFeature[3]; //point
             ssFeatureData >> vecFeature[4] >> vecFeature[5]; //feature
-			vecFeatures.emplace_back(vecFeature);		
+			vecFeatures.emplace_back(Eigen::Vector2d(vecFeature[4], vecFeature[5]));		
 		}
 		fsFeature.close();
 
